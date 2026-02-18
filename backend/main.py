@@ -1,38 +1,58 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import random
+import base64
+import numpy as np
+import cv2
 
 app = FastAPI()
 
-# Allow React frontend
+# ✅ CORS (VERY IMPORTANT FOR HOSTING)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],  # later you can restrict to frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# -------- MODEL --------
+# -----------------------------
+# Request model
+# -----------------------------
 class ImageData(BaseModel):
     image: str
 
 
-# -------- SCAN FACE --------
+# -----------------------------
+# SCAN FACE API
+# -----------------------------
 @app.post("/scan-face")
 def scan_face(data: ImageData):
-    # For now we simulate color detection
-    possible_colors = ["White", "Yellow", "Red", "Orange", "Blue", "Green"]
+    try:
+        # Remove header part from base64 string
+        image_data = data.image.split(",")[1]
+        image_bytes = base64.b64decode(image_data)
 
-    colors = [random.choice(possible_colors) for _ in range(9)]
+        # Convert to numpy array
+        np_arr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-    print("Detected Colors:", colors)
+        # Dummy colors for now (you can improve detection later)
+        detected_colors = [
+            "White", "White", "White",
+            "White", "White", "White",
+            "White", "White", "White"
+        ]
 
-    return {"colors": colors}
+        return {"colors": detected_colors}
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
-# -------- SOLVE CUBE --------
+# -----------------------------
+# SOLVE CUBE API
+# -----------------------------
 @app.get("/solve")
 def solve_cube(cube: str):
     # Dummy solution for now
