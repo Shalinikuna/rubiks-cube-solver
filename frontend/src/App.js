@@ -1,121 +1,77 @@
-import React, { useRef, useState } from "react";
-import Webcam from "react-webcam";
+import React, { useState } from "react";
+import "./App.css";
+
+const API_BASE = "https://rubiks-cube-solver-why2.onrender.com";
 
 function App() {
-  const webcamRef = useRef(null);
-
-  const [currentFace, setCurrentFace] = useState([]);
-  const [allFaces, setAllFaces] = useState([]);
+  const [cubeInput, setCubeInput] = useState("");
   const [solution, setSolution] = useState("");
-
-  // 🔥 IMPORTANT: Your LIVE backend URL
-  const BASE_URL = "https://rubiks-cube-solver-why2.onrender.com";
-
-  const captureFace = async () => {
-    const imageSrc = webcamRef.current.getScreenshot();
-
-    try {
-      const response = await fetch(`${BASE_URL}/scan-face`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ image: imageSrc }),
-      });
-
-      const data = await response.json();
-      setCurrentFace(data.colors);
-    } catch (error) {
-      console.error("Error capturing face:", error);
-    }
-  };
-
-  const saveFace = () => {
-    if (currentFace.length === 9) {
-      setAllFaces([...allFaces, currentFace]);
-      setCurrentFace([]);
-    }
-  };
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const solveCube = async () => {
-    const cubeString = allFaces.flat().join("");
+    if (!cubeInput) {
+      alert("Please enter cube data!");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSolution("");
 
     try {
       const response = await fetch(
-        `${BASE_URL}/solve?cube=${cubeString}`
+        `${API_BASE}/solve?cube=${encodeURIComponent(cubeInput)}`
       );
 
       const data = await response.json();
-      setSolution(data.solution);
-    } catch (error) {
-      console.error("Error solving cube:", error);
-    }
-  };
 
-  const colorMap = {
-    White: "white",
-    Yellow: "yellow",
-    Red: "red",
-    Orange: "orange",
-    Blue: "blue",
-    Green: "green",
+      if (!response.ok) {
+        throw new Error(data.detail || "Something went wrong");
+      }
+
+      setSolution(data.solution);
+    } catch (err) {
+      setError(err.message);
+    }
+
+    setLoading(false);
   };
 
   return (
-    <div style={{ textAlign: "center" }}>
-      <h1>Rubik's Cube Live Scanner</h1>
+    <div className="App">
+      <h1>🧩 Rubik's Cube Solver</h1>
 
-      <Webcam
-        ref={webcamRef}
-        screenshotFormat="image/jpeg"
-        width={400}
+      <input
+        type="text"
+        placeholder="Enter cube string..."
+        value={cubeInput}
+        onChange={(e) => setCubeInput(e.target.value)}
       />
 
       <br /><br />
 
-      <button onClick={captureFace}>Capture Face</button>
-
-      <button
-        onClick={saveFace}
-        style={{ marginLeft: "10px" }}
-      >
-        Save Face
-      </button>
-
-      <h2>Current Face:</h2>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 60px)",
-          justifyContent: "center",
-          gap: "5px",
-        }}
-      >
-        {currentFace.map((color, index) => (
-          <div
-            key={`current-${index}`}
-            style={{
-              width: "60px",
-              height: "60px",
-              backgroundColor: colorMap[color] || "gray",
-              border: "1px solid black",
-            }}
-          />
-        ))}
-      </div>
-
-      <h2>Faces Saved: {allFaces.length} / 6</h2>
-
-      <button
-        onClick={solveCube}
-        disabled={allFaces.length !== 6}
-      >
+      <button onClick={solveCube}>
         Solve Cube
       </button>
 
-      <h2>Solution:</h2>
-      <h3>{solution}</h3>
+      <br /><br />
+
+      {loading && <p>⏳ Solving...</p>}
+
+      {solution && (
+        <div>
+          <h3>✅ Solution:</h3>
+          <p>{solution}</p>
+        </div>
+      )}
+
+      {error && (
+        <div>
+          <h3>❌ Error:</h3>
+          <p>{error}</p>
+        </div>
+      )}
     </div>
   );
 }
