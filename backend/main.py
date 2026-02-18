@@ -3,23 +3,29 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# ✅ Allow frontend requests (CORS fix)
+# ----------------------------
+# ✅ CORS (Allow frontend)
+# ----------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # You can restrict later
+    allow_origins=["*"],  # You can restrict later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Root endpoint (so browser shows something)
+# ----------------------------
+# ✅ ROOT ENDPOINT
+# ----------------------------
 @app.get("/")
 def home():
-    return {"message": "Rubik's Cube Solver API is LIVE 🚀"}
+    return {
+        "message": "Rubik's Cube Solver API is LIVE 🚀"
+    }
 
-# -----------------------------
-# SCAN FACE
-# -----------------------------
+# ----------------------------
+# ✅ SCAN FACE
+# ----------------------------
 @app.post("/scan-face")
 def scan_face(data: dict):
     # Dummy colors for now
@@ -31,9 +37,12 @@ def scan_face(data: dict):
         ]
     }
 
-# -----------------------------
-# SOLVE CUBE
-# -----------------------------
+# ----------------------------
+# ✅ SOLVE CUBE
+# ----------------------------
 @app.get("/solve")
 def solve_cube(cube: str):
-    return {"solution": "R U R' U'"}
+    # Dummy solution
+    return {
+        "solution": "R U R' U'"
+    }
