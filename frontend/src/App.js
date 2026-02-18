@@ -1,77 +1,75 @@
-import React, { useState } from "react";
-import "./App.css";
-
-const API_BASE = "https://rubiks-cube-solver-why2.onrender.com";
+import React, { useRef, useState } from "react";
 
 function App() {
-  const [cubeInput, setCubeInput] = useState("");
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  const [colors, setColors] = useState([]);
   const [solution, setSolution] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const solveCube = async () => {
-    if (!cubeInput) {
-      alert("Please enter cube data!");
-      return;
-    }
+  // 🎥 Start Camera
+  const startCamera = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    videoRef.current.srcObject = stream;
+  };
 
-    setLoading(true);
-    setError("");
-    setSolution("");
+  // 📷 Capture Image & Send to Backend
+  const captureAndScan = async () => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
 
-    try {
-      const response = await fetch(
-        `${API_BASE}/solve?cube=${encodeURIComponent(cubeInput)}`
-      );
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-      const data = await response.json();
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
 
-      if (!response.ok) {
-        throw new Error(data.detail || "Something went wrong");
+    const imageData = canvas.toDataURL("image/png");
+
+    const response = await fetch(
+      "https://rubiks-cube-solver-why2.onrender.com/scan-face",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ image: imageData }),
       }
+    );
 
-      setSolution(data.solution);
-    } catch (err) {
-      setError(err.message);
-    }
+    const data = await response.json();
+    setColors(data.colors || []);
+  };
 
-    setLoading(false);
+  // 🧠 Solve Cube
+  const solveCube = async () => {
+    const response = await fetch(
+      "https://rubiks-cube-solver-why2.onrender.com/solve"
+    );
+
+    const data = await response.json();
+    setSolution(data.solution);
   };
 
   return (
-    <div className="App">
-      <h1>🧩 Rubik's Cube Solver</h1>
+    <div style={{ textAlign: "center", marginTop: "30px" }}>
+      <h1>🧩 Rubik's Cube Scanner & Solver</h1>
 
-      <input
-        type="text"
-        placeholder="Enter cube string..."
-        value={cubeInput}
-        onChange={(e) => setCubeInput(e.target.value)}
-      />
-
+      <video ref={videoRef} autoPlay width="300" />
       <br /><br />
 
-      <button onClick={solveCube}>
-        Solve Cube
-      </button>
+      <button onClick={startCamera}>Start Camera</button>
+      <button onClick={captureAndScan}>Capture & Scan</button>
 
-      <br /><br />
+      <canvas ref={canvasRef} style={{ display: "none" }} />
 
-      {loading && <p>⏳ Solving...</p>}
+      <h3>Detected Colors:</h3>
+      <p>{colors.join(", ")}</p>
 
-      {solution && (
-        <div>
-          <h3>✅ Solution:</h3>
-          <p>{solution}</p>
-        </div>
-      )}
+      <button onClick={solveCube}>Solve Cube</button>
 
-      {error && (
-        <div>
-          <h3>❌ Error:</h3>
-          <p>{error}</p>
-        </div>
-      )}
+      <h3>Solution:</h3>
+      <p>{solution}</p>
     </div>
   );
 }
