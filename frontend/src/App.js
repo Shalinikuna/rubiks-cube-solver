@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 
 function App() {
   const videoRef = useRef(null);
@@ -8,38 +8,32 @@ function App() {
   const [faces, setFaces] = useState([]);
   const [solution, setSolution] = useState([]);
   const [cameraStarted, setCameraStarted] = useState(false);
-  const [stream, setStream] = useState(null);
 
-  // ================= START CAMERA =================
+  // ---------------- START CAMERA ----------------
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
-        audio: false,
       });
 
-      setStream(mediaStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+
       setCameraStarted(true);
-    } catch (error) {
-      alert("Camera access failed: " + error.message);
+    } catch (err) {
+      alert("Camera access failed.");
+      console.log(err);
     }
   };
 
-  // Attach stream AFTER video element exists
-  useEffect(() => {
-    if (cameraStarted && stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(() => {});
-    }
-  }, [cameraStarted, stream]);
-
-  // ================= CAPTURE FACE =================
+  // ---------------- CAPTURE FACE ----------------
   const captureFace = () => {
-    const video = videoRef.current;
     const canvas = canvasRef.current;
+    const video = videoRef.current;
 
     if (!video || !canvas) {
-      alert("Video not ready yet");
+      alert("Camera not ready.");
       return;
     }
 
@@ -56,14 +50,17 @@ function App() {
       canvas.height
     );
 
-    setFaces([...faces, detectedColors]);
+    console.log("Face detected:", detectedColors);
+
+    setFaces((prev) => [...prev, detectedColors]);
     setCurrentFace((prev) => prev + 1);
   };
 
-  // ================= DETECT COLORS =================
+  // ---------------- COLOR DETECTION ----------------
   const detectGridColors = (ctx, width, height) => {
-    const squareWidth = width / 3;
-    const squareHeight = height / 3;
+    const gridSize = 3;
+    const squareWidth = width / gridSize;
+    const squareHeight = height / gridSize;
 
     let cubeFace = "";
 
@@ -81,19 +78,19 @@ function App() {
     return cubeFace;
   };
 
-  // ================= SMART COLOR MATCH =================
+  // ---------------- SMART COLOR MATCHING ----------------
   const mapColor = (r, g, b) => {
     const colors = {
-      U: [255, 255, 255],
-      R: [200, 0, 0],
-      F: [0, 200, 0],
-      B: [0, 0, 200],
-      D: [255, 255, 0],
-      L: [255, 120, 0],
+      U: [255, 255, 255], // White
+      R: [200, 0, 0],     // Red
+      F: [0, 200, 0],     // Green
+      B: [0, 0, 200],     // Blue
+      D: [255, 255, 0],   // Yellow
+      L: [255, 120, 0],   // Orange
     };
 
     let minDistance = Infinity;
-    let closestColor = "U";
+    let closest = "U";
 
     for (let key in colors) {
       const [cr, cg, cb] = colors[key];
@@ -105,62 +102,41 @@ function App() {
 
       if (distance < minDistance) {
         minDistance = distance;
-        closestColor = key;
+        closest = key;
       }
     }
 
-    return closestColor;
+    return closest;
   };
 
-  // ================= VALIDATE =================
-  const validateCube = (cubeString) => {
-    const count = {};
-    for (let c of cubeString) {
-      count[c] = (count[c] || 0) + 1;
-    }
-
-    return (
-      count.U === 9 &&
-      count.R === 9 &&
-      count.F === 9 &&
-      count.D === 9 &&
-      count.L === 9 &&
-      count.B === 9
-    );
-  };
-
-  // ================= WORD MOVES =================
+  // ---------------- MOVE TO WORD CONVERSION ----------------
   const convertMoveToWords = (move) => {
-    const map = {
-      R: "Rotate Right clockwise",
-      "R'": "Rotate Right counter-clockwise",
-      R2: "Rotate Right twice",
-      L: "Rotate Left clockwise",
-      "L'": "Rotate Left counter-clockwise",
-      L2: "Rotate Left twice",
-      U: "Rotate Top clockwise",
-      "U'": "Rotate Top counter-clockwise",
-      U2: "Rotate Top twice",
-      D: "Rotate Bottom clockwise",
-      "D'": "Rotate Bottom counter-clockwise",
-      D2: "Rotate Bottom twice",
-      F: "Rotate Front clockwise",
-      "F'": "Rotate Front counter-clockwise",
-      F2: "Rotate Front twice",
-      B: "Rotate Back clockwise",
-      "B'": "Rotate Back counter-clockwise",
-      B2: "Rotate Back twice",
+    const mapping = {
+      U: "Rotate Top Face Clockwise",
+      "U'": "Rotate Top Face Counter-Clockwise",
+      R: "Rotate Right Face Clockwise",
+      "R'": "Rotate Right Face Counter-Clockwise",
+      L: "Rotate Left Face Clockwise",
+      "L'": "Rotate Left Face Counter-Clockwise",
+      F: "Rotate Front Face Clockwise",
+      "F'": "Rotate Front Face Counter-Clockwise",
+      B: "Rotate Back Face Clockwise",
+      "B'": "Rotate Back Face Counter-Clockwise",
+      D: "Rotate Bottom Face Clockwise",
+      "D'": "Rotate Bottom Face Counter-Clockwise",
     };
 
-    return map[move] || move;
+    return mapping[move] || move;
   };
 
-  // ================= SOLVE =================
+  // ---------------- SOLVE CUBE ----------------
   const solveCube = async () => {
     const cubeString = faces.join("");
 
-    if (!validateCube(cubeString)) {
-      alert("Invalid cube configuration. Scan carefully.");
+    console.log("Final cube string:", cubeString);
+
+    if (cubeString.length !== 54) {
+      alert("Cube not fully scanned.");
       return;
     }
 
@@ -177,18 +153,21 @@ function App() {
       const data = await response.json();
 
       if (data.solution_steps) {
-        setSolution(
-          data.solution_steps.map(convertMoveToWords)
-        );
+        const readableSteps =
+          data.solution_steps.map(convertMoveToWords);
+
+        setSolution(readableSteps);
       } else {
-        alert("Solver rejected cube");
+        alert("Invalid cube configuration. Scan carefully.");
+        console.log(data);
       }
     } catch (err) {
-      alert("Server error");
+      alert("Server error.");
+      console.log(err);
     }
   };
 
-  // ================= UI =================
+  // ---------------- UI ----------------
   return (
     <div style={{ textAlign: "center", marginTop: "30px" }}>
       <h1>🧩 Rubik's Cube Camera Solver</h1>
@@ -207,7 +186,6 @@ function App() {
             ref={videoRef}
             autoPlay
             playsInline
-            muted
             width="400"
             height="300"
             style={{ border: "2px solid black" }}
@@ -236,10 +214,10 @@ function App() {
 
       {solution.length > 0 && (
         <>
-          <h2>Step-by-Step Solution</h2>
-          {solution.map((step, i) => (
-            <div key={i}>
-              Step {i + 1}: {step}
+          <h2>Solution Steps</h2>
+          {solution.map((step, index) => (
+            <div key={index}>
+              Step {index + 1}: {step}
             </div>
           ))}
         </>
