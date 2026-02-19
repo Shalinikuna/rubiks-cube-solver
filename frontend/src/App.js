@@ -2,74 +2,68 @@ import React, { useRef, useState } from "react";
 
 function App() {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
 
-  const [colors, setColors] = useState([]);
-  const [solution, setSolution] = useState("");
+  const [faces, setFaces] = useState([]);
+  const [steps, setSteps] = useState([]);
 
-  // 🎥 Start Camera
+  const backendURL = "https://rubiks-cube-solver-why2.onrender.com";
+
   const startCamera = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    videoRef.current.srcObject = stream;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoRef.current.srcObject = stream;
+    } catch (err) {
+      alert("Camera access denied");
+    }
   };
 
-  // 📷 Capture Image & Send to Backend
-  const captureAndScan = async () => {
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
+  const captureFace = async () => {
+    const res = await fetch(`${backendURL}/scan-face`, {
+      method: "POST"
+    });
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const data = await res.json();
 
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0);
-
-    const imageData = canvas.toDataURL("image/png");
-
-    const response = await fetch(
-      "https://rubiks-cube-solver-why2.onrender.com/scan-face",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ image: imageData }),
-      }
-    );
-
-    const data = await response.json();
-    setColors(data.colors || []);
+    setFaces(prev => [...prev, data]);
   };
 
-  // 🧠 Solve Cube
   const solveCube = async () => {
-    const response = await fetch(
-      "https://rubiks-cube-solver-why2.onrender.com/solve"
-    );
-
-    const data = await response.json();
-    setSolution(data.solution);
+    const res = await fetch(`${backendURL}/solve`);
+    const data = await res.json();
+    setSteps(data.steps);
   };
 
   return (
-    <div style={{ textAlign: "center", marginTop: "30px" }}>
-      <h1>🧩 Rubik's Cube Scanner & Solver</h1>
+    <div style={{ textAlign: "center", padding: "20px" }}>
+      <h1>Rubik's Cube Scanner & Solver</h1>
 
-      <video ref={videoRef} autoPlay width="300" />
+      <video ref={videoRef} width="400" autoPlay />
+
       <br /><br />
 
       <button onClick={startCamera}>Start Camera</button>
-      <button onClick={captureAndScan}>Capture & Scan</button>
+      <button onClick={captureFace}>Capture Face</button>
 
-      <canvas ref={canvasRef} style={{ display: "none" }} />
+      <h2>Scanned Faces:</h2>
 
-      <h3>Detected Colors:</h3>
-      <p>{colors.join(", ")}</p>
+      {faces.map((face, index) => (
+        <div key={index}>
+          <h3>Face {face.face_number}</h3>
+          <p>{face.face_colors.join(", ")}</p>
+        </div>
+      ))}
+
+      <br />
 
       <button onClick={solveCube}>Solve Cube</button>
 
-      <h3>Solution:</h3>
-      <p>{solution}</p>
+      <h2>Step-by-Step Solution:</h2>
+
+      {steps.map((step, index) => (
+        <p key={index}>
+          Step {index + 1}: {step}
+        </p>
+      ))}
     </div>
   );
 }
