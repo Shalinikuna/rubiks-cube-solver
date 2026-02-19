@@ -1,52 +1,62 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import base64
 
 app = FastAPI()
 
-# ✅ Enable CORS (so frontend can call backend)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can restrict later
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Root endpoint
 @app.get("/")
 def home():
-    return {"message": "Rubik's Cube Solver API is LIVE 🚀"}
+    return {"message": "Rubik's Cube Scanner API is LIVE 🚀"}
 
-# ===============================
-# 📷 Scan Face (Receives Image)
-# ===============================
+
+# Store faces temporarily
+cube_faces = []
+
+
 @app.post("/scan-face")
-async def scan_face(data: dict = Body(...)):
-    image_data = data.get("image")
+def scan_face():
+    global cube_faces
 
-    if not image_data:
-        return {"error": "No image received"}
+    # Dummy detected face (replace later with real detection)
+    detected_face = [
+        "Red", "Blue", "Green",
+        "White", "Yellow", "Orange",
+        "Red", "Blue", "Green"
+    ]
 
-    # Remove base64 header
-    try:
-        header, encoded = image_data.split(",", 1)
-        image_bytes = base64.b64decode(encoded)
-    except Exception:
-        return {"error": "Invalid image format"}
+    cube_faces.append(detected_face)
 
-    # For now → returning dummy colors
     return {
-        "colors": [
-            "Red", "Blue", "Green",
-            "White", "Yellow", "Orange",
-            "Red", "Blue", "Green"
-        ]
+        "face_number": len(cube_faces),
+        "face_colors": detected_face
     }
 
-# ===============================
-# 🧠 Solve Cube (Dummy)
-# ===============================
+
 @app.get("/solve")
 def solve_cube():
-    return {"solution": "R U R' U'"}
+    # Dummy algorithm
+    moves = ["R", "U", "R'", "U'"]
+
+    readable_steps = []
+
+    for move in moves:
+        if move == "R":
+            readable_steps.append("Rotate Right face clockwise")
+        elif move == "R'":
+            readable_steps.append("Rotate Right face anti-clockwise")
+        elif move == "U":
+            readable_steps.append("Rotate Upper face clockwise")
+        elif move == "U'":
+            readable_steps.append("Rotate Upper face anti-clockwise")
+
+    return {
+        "faces_scanned": len(cube_faces),
+        "steps": readable_steps
+    }
