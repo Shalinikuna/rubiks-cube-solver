@@ -9,8 +9,7 @@ function App() {
   const [solution, setSolution] = useState([]);
   const [cameraStarted, setCameraStarted] = useState(false);
 
-  // ================= CAMERA =================
-
+  // ================= START CAMERA =================
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -19,20 +18,20 @@ function App() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setCameraStarted(true);
       }
+
+      setCameraStarted(true);
     } catch (error) {
       alert("Camera access failed: " + error.message);
     }
   };
 
-  // ================= CAPTURE =================
-
+  // ================= CAPTURE FACE =================
   const captureFace = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
 
-    if (!video || !canvas) return;
+    if (!canvas || !video) return;
 
     const ctx = canvas.getContext("2d");
 
@@ -51,8 +50,7 @@ function App() {
     setCurrentFace(currentFace + 1);
   };
 
-  // ================= COLOR DETECTION =================
-
+  // ================= DETECT COLORS =================
   const detectGridColors = (ctx, width, height) => {
     const squareWidth = width / 3;
     const squareHeight = height / 3;
@@ -61,8 +59,8 @@ function App() {
 
     for (let row = 0; row < 3; row++) {
       for (let col = 0; col < 3; col++) {
-        const x = col * squareWidth + squareWidth / 2;
-        const y = row * squareHeight + squareHeight / 2;
+        const x = Math.floor(col * squareWidth + squareWidth / 2);
+        const y = Math.floor(row * squareHeight + squareHeight / 2);
 
         const pixel = ctx.getImageData(x, y, 1, 1).data;
         const r = pixel[0];
@@ -76,30 +74,40 @@ function App() {
     return cubeFace;
   };
 
+  // ================= SMART COLOR MATCHING =================
   const mapColor = (r, g, b) => {
-    // White
-    if (r > 200 && g > 200 && b > 200) return "U";
 
-    // Red
-    if (r > 150 && g < 120 && b < 120) return "R";
+    const colors = {
+      U: [255, 255, 255],  // White
+      R: [200, 0, 0],      // Red
+      F: [0, 200, 0],      // Green
+      B: [0, 0, 200],      // Blue
+      D: [255, 255, 0],    // Yellow
+      L: [255, 120, 0]     // Orange
+    };
 
-    // Orange
-    if (r > 180 && g > 100 && g < 180 && b < 100) return "L";
+    let minDistance = Infinity;
+    let closestColor = "U";
 
-    // Yellow
-    if (r > 200 && g > 200 && b < 150) return "D";
+    for (let key in colors) {
+      const [cr, cg, cb] = colors[key];
 
-    // Green
-    if (g > 150 && r < 150 && b < 150) return "F";
+      const distance = Math.sqrt(
+        (r - cr) ** 2 +
+        (g - cg) ** 2 +
+        (b - cb) ** 2
+      );
 
-    // Blue
-    if (b > 150 && r < 150 && g < 150) return "B";
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestColor = key;
+      }
+    }
 
-    return "U";
+    return closestColor;
   };
 
-  // ================= VALIDATION =================
-
+  // ================= VALIDATE CUBE =================
   const validateCube = (cubeString) => {
     const count = {};
 
@@ -120,8 +128,7 @@ function App() {
     );
   };
 
-  // ================= MOVE CONVERTER =================
-
+  // ================= CONVERT MOVES TO WORDS =================
   const convertMoveToWords = (move) => {
     const moveMap = {
       R: "Rotate Right face clockwise",
@@ -153,12 +160,11 @@ function App() {
   };
 
   // ================= SOLVE =================
-
   const solveCube = async () => {
     const cubeString = faces.join("");
 
     if (!validateCube(cubeString)) {
-      alert("Invalid cube configuration");
+      alert("Invalid cube configuration. Please rescan carefully.");
       return;
     }
 
@@ -182,13 +188,13 @@ function App() {
       } else {
         alert("Invalid cube configuration");
       }
+
     } catch (error) {
       alert("Server error: " + error.message);
     }
   };
 
   // ================= UI =================
-
   return (
     <div style={{ textAlign: "center", marginTop: "30px" }}>
       <h1>🧩 Rubik's Cube Camera Solver</h1>
@@ -227,7 +233,7 @@ function App() {
 
       {solution.length > 0 && (
         <>
-          <h2>Solution Steps</h2>
+          <h2>Step-by-Step Solution</h2>
           {solution.map((step, index) => (
             <div key={index}>
               Step {index + 1}: {step}
