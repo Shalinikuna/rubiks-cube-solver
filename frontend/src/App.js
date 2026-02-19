@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 function App() {
   const videoRef = useRef(null);
@@ -8,30 +8,40 @@ function App() {
   const [faces, setFaces] = useState([]);
   const [solution, setSolution] = useState([]);
   const [cameraStarted, setCameraStarted] = useState(false);
+  const [stream, setStream] = useState(null);
 
   // ================= START CAMERA =================
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
       });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-
+      setStream(mediaStream);
       setCameraStarted(true);
     } catch (error) {
       alert("Camera access failed: " + error.message);
     }
   };
 
+  // Attach stream AFTER video element exists
+  useEffect(() => {
+    if (cameraStarted && stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraStarted, stream]);
+
   // ================= CAPTURE FACE =================
   const captureFace = () => {
-    const canvas = canvasRef.current;
     const video = videoRef.current;
+    const canvas = canvasRef.current;
 
-    if (!canvas || !video) return;
+    if (!video || !canvas) {
+      alert("Video not ready yet");
+      return;
+    }
 
     const ctx = canvas.getContext("2d");
 
@@ -47,7 +57,7 @@ function App() {
     );
 
     setFaces([...faces, detectedColors]);
-    setCurrentFace(currentFace + 1);
+    setCurrentFace((prev) => prev + 1);
   };
 
   // ================= DETECT COLORS =================
@@ -63,27 +73,23 @@ function App() {
         const y = Math.floor(row * squareHeight + squareHeight / 2);
 
         const pixel = ctx.getImageData(x, y, 1, 1).data;
-        const r = pixel[0];
-        const g = pixel[1];
-        const b = pixel[2];
 
-        cubeFace += mapColor(r, g, b);
+        cubeFace += mapColor(pixel[0], pixel[1], pixel[2]);
       }
     }
 
     return cubeFace;
   };
 
-  // ================= SMART COLOR MATCHING =================
+  // ================= SMART COLOR MATCH =================
   const mapColor = (r, g, b) => {
-
     const colors = {
-      U: [255, 255, 255],  // White
-      R: [200, 0, 0],      // Red
-      F: [0, 200, 0],      // Green
-      B: [0, 0, 200],      // Blue
-      D: [255, 255, 0],    // Yellow
-      L: [255, 120, 0]     // Orange
+      U: [255, 255, 255],
+      R: [200, 0, 0],
+      F: [0, 200, 0],
+      B: [0, 0, 200],
+      D: [255, 255, 0],
+      L: [255, 120, 0],
     };
 
     let minDistance = Infinity;
@@ -92,11 +98,10 @@ function App() {
     for (let key in colors) {
       const [cr, cg, cb] = colors[key];
 
-      const distance = Math.sqrt(
+      const distance =
         (r - cr) ** 2 +
         (g - cg) ** 2 +
-        (b - cb) ** 2
-      );
+        (b - cb) ** 2;
 
       if (distance < minDistance) {
         minDistance = distance;
@@ -107,56 +112,47 @@ function App() {
     return closestColor;
   };
 
-  // ================= VALIDATE CUBE =================
+  // ================= VALIDATE =================
   const validateCube = (cubeString) => {
     const count = {};
-
     for (let c of cubeString) {
       count[c] = (count[c] || 0) + 1;
     }
 
-    console.log("Cube String:", cubeString);
-    console.log("Color Count:", count);
-
     return (
-      count["U"] === 9 &&
-      count["R"] === 9 &&
-      count["F"] === 9 &&
-      count["D"] === 9 &&
-      count["L"] === 9 &&
-      count["B"] === 9
+      count.U === 9 &&
+      count.R === 9 &&
+      count.F === 9 &&
+      count.D === 9 &&
+      count.L === 9 &&
+      count.B === 9
     );
   };
 
-  // ================= CONVERT MOVES TO WORDS =================
+  // ================= WORD MOVES =================
   const convertMoveToWords = (move) => {
-    const moveMap = {
-      R: "Rotate Right face clockwise",
-      "R'": "Rotate Right face counter-clockwise",
-      R2: "Rotate Right face twice",
-
-      L: "Rotate Left face clockwise",
-      "L'": "Rotate Left face counter-clockwise",
-      L2: "Rotate Left face twice",
-
-      U: "Rotate Top face clockwise",
-      "U'": "Rotate Top face counter-clockwise",
-      U2: "Rotate Top face twice",
-
-      D: "Rotate Bottom face clockwise",
-      "D'": "Rotate Bottom face counter-clockwise",
-      D2: "Rotate Bottom face twice",
-
-      F: "Rotate Front face clockwise",
-      "F'": "Rotate Front face counter-clockwise",
-      F2: "Rotate Front face twice",
-
-      B: "Rotate Back face clockwise",
-      "B'": "Rotate Back face counter-clockwise",
-      B2: "Rotate Back face twice"
+    const map = {
+      R: "Rotate Right clockwise",
+      "R'": "Rotate Right counter-clockwise",
+      R2: "Rotate Right twice",
+      L: "Rotate Left clockwise",
+      "L'": "Rotate Left counter-clockwise",
+      L2: "Rotate Left twice",
+      U: "Rotate Top clockwise",
+      "U'": "Rotate Top counter-clockwise",
+      U2: "Rotate Top twice",
+      D: "Rotate Bottom clockwise",
+      "D'": "Rotate Bottom counter-clockwise",
+      D2: "Rotate Bottom twice",
+      F: "Rotate Front clockwise",
+      "F'": "Rotate Front counter-clockwise",
+      F2: "Rotate Front twice",
+      B: "Rotate Back clockwise",
+      "B'": "Rotate Back counter-clockwise",
+      B2: "Rotate Back twice",
     };
 
-    return moveMap[move] || move;
+    return map[move] || move;
   };
 
   // ================= SOLVE =================
@@ -164,7 +160,7 @@ function App() {
     const cubeString = faces.join("");
 
     if (!validateCube(cubeString)) {
-      alert("Invalid cube configuration. Please rescan carefully.");
+      alert("Invalid cube configuration. Scan carefully.");
       return;
     }
 
@@ -174,23 +170,21 @@ function App() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cube_string: cubeString })
+          body: JSON.stringify({ cube_string: cubeString }),
         }
       );
 
       const data = await response.json();
 
       if (data.solution_steps) {
-        const readableSteps = data.solution_steps.map((move) =>
-          convertMoveToWords(move)
+        setSolution(
+          data.solution_steps.map(convertMoveToWords)
         );
-        setSolution(readableSteps);
       } else {
-        alert("Invalid cube configuration");
+        alert("Solver rejected cube");
       }
-
-    } catch (error) {
-      alert("Server error: " + error.message);
+    } catch (err) {
+      alert("Server error");
     }
   };
 
@@ -200,7 +194,9 @@ function App() {
       <h1>🧩 Rubik's Cube Camera Solver</h1>
 
       {!cameraStarted && (
-        <button onClick={startCamera}>Start Camera</button>
+        <button onClick={startCamera}>
+          Start Camera
+        </button>
       )}
 
       {cameraStarted && currentFace <= 6 && (
@@ -210,12 +206,17 @@ function App() {
           <video
             ref={videoRef}
             autoPlay
+            playsInline
+            muted
             width="400"
             height="300"
             style={{ border: "2px solid black" }}
           />
 
-          <canvas ref={canvasRef} style={{ display: "none" }} />
+          <canvas
+            ref={canvasRef}
+            style={{ display: "none" }}
+          />
 
           <br />
           <button onClick={captureFace}>
@@ -227,16 +228,18 @@ function App() {
       {currentFace > 6 && (
         <>
           <h2>All Faces Captured ✅</h2>
-          <button onClick={solveCube}>Solve Cube</button>
+          <button onClick={solveCube}>
+            Solve Cube
+          </button>
         </>
       )}
 
       {solution.length > 0 && (
         <>
           <h2>Step-by-Step Solution</h2>
-          {solution.map((step, index) => (
-            <div key={index}>
-              Step {index + 1}: {step}
+          {solution.map((step, i) => (
+            <div key={i}>
+              Step {i + 1}: {step}
             </div>
           ))}
         </>
