@@ -8,22 +8,39 @@ function App() {
   const [faces, setFaces] = useState([]);
   const [solution, setSolution] = useState([]);
   const [cameraStarted, setCameraStarted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Start Camera
+  // ================= START CAMERA =================
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Camera not supported in this browser");
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
       videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+
       setCameraStarted(true);
     } catch (error) {
-      alert("Camera permission denied or not available");
+      console.error(error);
+      alert("Camera access failed: " + error.message);
     }
   };
 
-  // Capture Face
+  // ================= CAPTURE FACE =================
   const captureFace = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
+
     const ctx = canvas.getContext("2d");
 
     canvas.width = video.videoWidth;
@@ -33,32 +50,35 @@ function App() {
 
     const detectedColors = detectGridColors(ctx, canvas.width, canvas.height);
 
-    setFaces(prev => [...prev, detectedColors]);
-    setCurrentFace(prev => prev + 1);
+    setFaces((prev) => [...prev, detectedColors]);
+    setCurrentFace((prev) => prev + 1);
   };
 
-  // Detect 3x3 grid colors
+  // ================= COLOR DETECTION =================
   const detectGridColors = (ctx, width, height) => {
-    const squareWidth = width / 3;
-    const squareHeight = height / 3;
+    const gridSize = 3;
+    const squareWidth = width / gridSize;
+    const squareHeight = height / gridSize;
+
     let cubeFace = "";
 
     for (let row = 0; row < 3; row++) {
       for (let col = 0; col < 3; col++) {
-
         const x = col * squareWidth + squareWidth / 2;
         const y = row * squareHeight + squareHeight / 2;
 
         const pixel = ctx.getImageData(x, y, 1, 1).data;
+        const r = pixel[0];
+        const g = pixel[1];
+        const b = pixel[2];
 
-        cubeFace += mapColor(pixel[0], pixel[1], pixel[2]);
+        cubeFace += mapColor(r, g, b);
       }
     }
 
     return cubeFace;
   };
 
-  // Basic color mapping
   const mapColor = (r, g, b) => {
     if (r > 200 && g > 200 && b > 200) return "W";
     if (r > 200 && g < 100 && b < 100) return "R";
@@ -66,63 +86,43 @@ function App() {
     if (r < 100 && g < 100 && b > 200) return "B";
     if (r > 200 && g > 150 && b < 100) return "Y";
     if (r > 200 && g > 100 && b < 50) return "O";
+
     return "W";
   };
 
-  // Convert move notation to words
-  const convertMoveToWords = (move) => {
-    if (move.includes("R'")) return "Rotate Right Face Anti-Clockwise";
-    if (move.includes("R2")) return "Rotate Right Face Twice";
-    if (move.includes("R")) return "Rotate Right Face Clockwise";
-
-    if (move.includes("L'")) return "Rotate Left Face Anti-Clockwise";
-    if (move.includes("L2")) return "Rotate Left Face Twice";
-    if (move.includes("L")) return "Rotate Left Face Clockwise";
-
-    if (move.includes("U'")) return "Rotate Top Face Anti-Clockwise";
-    if (move.includes("U2")) return "Rotate Top Face Twice";
-    if (move.includes("U")) return "Rotate Top Face Clockwise";
-
-    if (move.includes("D'")) return "Rotate Bottom Face Anti-Clockwise";
-    if (move.includes("D2")) return "Rotate Bottom Face Twice";
-    if (move.includes("D")) return "Rotate Bottom Face Clockwise";
-
-    if (move.includes("F'")) return "Rotate Front Face Anti-Clockwise";
-    if (move.includes("F2")) return "Rotate Front Face Twice";
-    if (move.includes("F")) return "Rotate Front Face Clockwise";
-
-    if (move.includes("B'")) return "Rotate Back Face Anti-Clockwise";
-    if (move.includes("B2")) return "Rotate Back Face Twice";
-    if (move.includes("B")) return "Rotate Back Face Clockwise";
-
-    return move;
-  };
-
-  // Solve Cube
+  // ================= SOLVE CUBE =================
   const solveCube = async () => {
-    const cubeString = faces.join("");
+    try {
+      setLoading(true);
 
-    const response = await fetch(
-      "https://rubiks-cube-solver-why2.onrender.com/solve",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cube_string: cubeString })
-      }
-    );
+      const cubeString = faces.join("");
 
-    const data = await response.json();
-
-    if (data.solution_steps) {
-      const converted = data.solution_steps.map(step =>
-        convertMoveToWords(step)
+      const response = await fetch(
+        "https://rubiks-cube-solver-why2.onrender.com/solve",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cube_string: cubeString })
+        }
       );
-      setSolution(converted);
-    } else {
-      alert("Invalid cube configuration");
+
+      const data = await response.json();
+
+      if (data.solution_steps) {
+        setSolution(data.solution_steps);
+      } else {
+        alert("Invalid cube configuration");
+      }
+
+      setLoading(false);
+    } catch (error) {
+      console.error(error);
+      alert("Error solving cube");
+      setLoading(false);
     }
   };
 
+  // ================= UI =================
   return (
     <div style={{ textAlign: "center", marginTop: "30px" }}>
       <h1>🧩 Rubik's Cube Camera Solver</h1>
@@ -139,9 +139,10 @@ function App() {
             ref={videoRef}
             autoPlay
             playsInline
+            muted
             width="400"
             height="300"
-            style={{ border: "2px solid black" }}
+            style={{ border: "3px solid black" }}
           />
 
           <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -157,7 +158,9 @@ function App() {
       {currentFace > 6 && (
         <>
           <h2>All Faces Captured ✅</h2>
-          <button onClick={solveCube}>Solve Cube</button>
+          <button onClick={solveCube}>
+            {loading ? "Solving..." : "Solve Cube"}
+          </button>
         </>
       )}
 
