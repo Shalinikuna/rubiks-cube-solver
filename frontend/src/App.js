@@ -19,15 +19,14 @@ function App() {
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+        video: true,
         audio: false
       });
 
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
 
       setCameraStarted(true);
     } catch (error) {
@@ -40,6 +39,8 @@ function App() {
   const captureFace = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
+
+    if (!canvas || !video) return;
 
     const ctx = canvas.getContext("2d");
 
@@ -86,11 +87,10 @@ function App() {
     if (r < 100 && g < 100 && b > 200) return "B";
     if (r > 200 && g > 150 && b < 100) return "Y";
     if (r > 200 && g > 100 && b < 50) return "O";
-
     return "W";
   };
 
-  // ================= SOLVE CUBE =================
+  // ================= SOLVE =================
   const solveCube = async () => {
     try {
       setLoading(true);
@@ -127,6 +127,22 @@ function App() {
     <div style={{ textAlign: "center", marginTop: "30px" }}>
       <h1>🧩 Rubik's Cube Camera Solver</h1>
 
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        width="400"
+        height="300"
+        style={{
+          border: "3px solid black",
+          display: cameraStarted ? "block" : "none",
+          margin: "auto"
+        }}
+      />
+
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+
       {!cameraStarted && (
         <button onClick={startCamera}>Start Camera</button>
       )}
@@ -134,21 +150,6 @@ function App() {
       {cameraStarted && currentFace <= 6 && (
         <>
           <h2>Scan Face {currentFace} of 6</h2>
-
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            width="400"
-            height="300"
-            style={{ border: "3px solid black" }}
-          />
-
-          <canvas ref={canvasRef} style={{ display: "none" }} />
-
-          <br /><br />
-
           <button onClick={captureFace}>
             Capture Face {currentFace}
           </button>
