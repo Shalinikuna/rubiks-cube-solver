@@ -10,31 +10,29 @@ function App() {
   const [cameraStarted, setCameraStarted] = useState(false);
 
   // ================= CAMERA =================
+
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
+        video: true
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        setCameraStarted(true);
       }
-
-      setCameraStarted(true);
-    } catch (err) {
-      alert("Camera access failed: " + err.message);
+    } catch (error) {
+      alert("Camera access failed: " + error.message);
     }
   };
 
   // ================= CAPTURE =================
+
   const captureFace = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
 
-    if (!canvas || !video) {
-      alert("Camera not ready");
-      return;
-    }
+    if (!video || !canvas) return;
 
     const ctx = canvas.getContext("2d");
 
@@ -43,28 +41,30 @@ function App() {
 
     ctx.drawImage(video, 0, 0);
 
-    const detectedColors = detectGridColors(ctx, canvas.width, canvas.height);
+    const detectedColors = detectGridColors(
+      ctx,
+      canvas.width,
+      canvas.height
+    );
 
-    setFaces(prev => [...prev, detectedColors]);
-    setCurrentFace(prev => prev + 1);
+    setFaces([...faces, detectedColors]);
+    setCurrentFace(currentFace + 1);
   };
 
-  // ================= DETECT COLORS =================
+  // ================= COLOR DETECTION =================
+
   const detectGridColors = (ctx, width, height) => {
-    const gridSize = 3;
-    const squareWidth = width / gridSize;
-    const squareHeight = height / gridSize;
+    const squareWidth = width / 3;
+    const squareHeight = height / 3;
 
     let cubeFace = "";
 
     for (let row = 0; row < 3; row++) {
       for (let col = 0; col < 3; col++) {
-
-        const x = Math.floor(col * squareWidth + squareWidth / 2);
-        const y = Math.floor(row * squareHeight + squareHeight / 2);
+        const x = col * squareWidth + squareWidth / 2;
+        const y = row * squareHeight + squareHeight / 2;
 
         const pixel = ctx.getImageData(x, y, 1, 1).data;
-
         const r = pixel[0];
         const g = pixel[1];
         const b = pixel[2];
@@ -76,81 +76,90 @@ function App() {
     return cubeFace;
   };
 
-  // ================= COLOR MAPPING (FOR KOCIEMBA) =================
   const mapColor = (r, g, b) => {
-
-    // WHITE -> U
+    // White
     if (r > 200 && g > 200 && b > 200) return "U";
 
-    // RED -> R
-    if (r > 180 && g < 100 && b < 100) return "R";
+    // Red
+    if (r > 150 && g < 120 && b < 120) return "R";
 
-    // GREEN -> F
-    if (r < 100 && g > 150 && b < 100) return "F";
+    // Orange
+    if (r > 180 && g > 100 && g < 180 && b < 100) return "L";
 
-    // BLUE -> B
-    if (r < 100 && g < 100 && b > 150) return "B";
+    // Yellow
+    if (r > 200 && g > 200 && b < 150) return "D";
 
-    // YELLOW -> D
-    if (r > 200 && g > 200 && b < 100) return "D";
+    // Green
+    if (g > 150 && r < 150 && b < 150) return "F";
 
-    // ORANGE -> L
-    if (r > 200 && g > 120 && b < 80) return "L";
+    // Blue
+    if (b > 150 && r < 150 && g < 150) return "B";
 
-    return "U"; // fallback
+    return "U";
   };
 
-  // ================= TRANSLATE MOVES TO WORDS =================
-  const translateMove = (move) => {
-    const map = {
-      U: "Rotate Top Clockwise",
-      "U'": "Rotate Top Counter-Clockwise",
-      U2: "Rotate Top Twice",
+  // ================= VALIDATION =================
 
-      R: "Rotate Right Clockwise",
-      "R'": "Rotate Right Counter-Clockwise",
-      R2: "Rotate Right Twice",
-
-      L: "Rotate Left Clockwise",
-      "L'": "Rotate Left Counter-Clockwise",
-      L2: "Rotate Left Twice",
-
-      F: "Rotate Front Clockwise",
-      "F'": "Rotate Front Counter-Clockwise",
-      F2: "Rotate Front Twice",
-
-      B: "Rotate Back Clockwise",
-      "B'": "Rotate Back Counter-Clockwise",
-      B2: "Rotate Back Twice",
-
-      D: "Rotate Bottom Clockwise",
-      "D'": "Rotate Bottom Counter-Clockwise",
-      D2: "Rotate Bottom Twice"
-    };
-
-    return map[move] || move;
-  };
-
-  // ================= SOLVE =================
-  const solveCube = async () => {
-    const cubeString = faces.join("");
-
-    if (cubeString.length !== 54) {
-      alert("Scan all 6 faces first.");
-      return;
-    }
-
-    // Validate 9 of each color
+  const validateCube = (cubeString) => {
     const count = {};
+
     for (let c of cubeString) {
       count[c] = (count[c] || 0) + 1;
     }
 
-    for (let key of ["U", "R", "F", "D", "L", "B"]) {
-      if (count[key] !== 9) {
-        alert("Invalid cube colors detected. Please rescan carefully.");
-        return;
-      }
+    console.log("Cube String:", cubeString);
+    console.log("Color Count:", count);
+
+    return (
+      count["U"] === 9 &&
+      count["R"] === 9 &&
+      count["F"] === 9 &&
+      count["D"] === 9 &&
+      count["L"] === 9 &&
+      count["B"] === 9
+    );
+  };
+
+  // ================= MOVE CONVERTER =================
+
+  const convertMoveToWords = (move) => {
+    const moveMap = {
+      R: "Rotate Right face clockwise",
+      "R'": "Rotate Right face counter-clockwise",
+      R2: "Rotate Right face twice",
+
+      L: "Rotate Left face clockwise",
+      "L'": "Rotate Left face counter-clockwise",
+      L2: "Rotate Left face twice",
+
+      U: "Rotate Top face clockwise",
+      "U'": "Rotate Top face counter-clockwise",
+      U2: "Rotate Top face twice",
+
+      D: "Rotate Bottom face clockwise",
+      "D'": "Rotate Bottom face counter-clockwise",
+      D2: "Rotate Bottom face twice",
+
+      F: "Rotate Front face clockwise",
+      "F'": "Rotate Front face counter-clockwise",
+      F2: "Rotate Front face twice",
+
+      B: "Rotate Back face clockwise",
+      "B'": "Rotate Back face counter-clockwise",
+      B2: "Rotate Back face twice"
+    };
+
+    return moveMap[move] || move;
+  };
+
+  // ================= SOLVE =================
+
+  const solveCube = async () => {
+    const cubeString = faces.join("");
+
+    if (!validateCube(cubeString)) {
+      alert("Invalid cube configuration");
+      return;
     }
 
     try {
@@ -166,20 +175,20 @@ function App() {
       const data = await response.json();
 
       if (data.solution_steps) {
-        const translated = data.solution_steps.map(step =>
-          translateMove(step)
+        const readableSteps = data.solution_steps.map((move) =>
+          convertMoveToWords(move)
         );
-        setSolution(translated);
+        setSolution(readableSteps);
       } else {
         alert("Invalid cube configuration");
       }
-
-    } catch (err) {
-      alert("Error solving cube");
+    } catch (error) {
+      alert("Server error: " + error.message);
     }
   };
 
   // ================= UI =================
+
   return (
     <div style={{ textAlign: "center", marginTop: "30px" }}>
       <h1>🧩 Rubik's Cube Camera Solver</h1>
@@ -195,7 +204,6 @@ function App() {
           <video
             ref={videoRef}
             autoPlay
-            playsInline
             width="400"
             height="300"
             style={{ border: "2px solid black" }}
@@ -219,7 +227,7 @@ function App() {
 
       {solution.length > 0 && (
         <>
-          <h2>Step-by-Step Solution</h2>
+          <h2>Solution Steps</h2>
           {solution.map((step, index) => (
             <div key={index}>
               Step {index + 1}: {step}
